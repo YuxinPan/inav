@@ -29,22 +29,17 @@
 #define USE_SPI
 #define USE_SPI_DEVICE_1
 
-#define USE_GYRO
-#define USE_GYRO_L3GD20
-#define USE_GYRO_MPU6050
+#define USE_IMU_L3GD20
+#define USE_IMU_MPU6050
+#define USE_IMU_LSM303DLHC
 
 #define MPU6050_I2C_BUS                 BUS_I2C1
 #define LSM303DLHC_I2C_BUS              BUS_I2C1
 #define L3GD20_SPI_BUS                  BUS_SPI1
 #define L3GD20_CS_PIN                   PE3
 
-#define GYRO_L3GD20_ALIGN CW270_DEG
-#define GYRO_MPU6050_ALIGN CW0_DEG
-
-#define USE_ACC
-#define USE_ACC_MPU6050
-#define USE_ACC_LSM303DLHC
-#define ACC_MPU6050_ALIGN       CW0_DEG
+#define IMU_L3GD20_ALIGN       CW270_DEG
+#define IMU_MPU6050_ALIGN      CW0_DEG
 
 #define USE_BARO
 #define BARO_I2C_BUS            BUS_I2C1
@@ -57,7 +52,9 @@
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
 #define USE_MAG_IST8310
+#define USE_MAG_IST8308
 #define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_VCP
 #define USE_UART1
@@ -87,7 +84,3 @@
 #define TARGET_IO_PORTD         (BIT(2)|BIT(5)|BIT(6)|BIT(10)|BIT(12)|BIT(13)|BIT(14)|BIT(15))
 #define TARGET_IO_PORTE         0xffff
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(4)|BIT(9)|BIT(10))
-
-#define USABLE_TIMER_CHANNEL_COUNT 18
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(8) | TIM_N(15) | TIM_N(16) | TIM_N(17))
-

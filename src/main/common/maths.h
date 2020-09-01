@@ -18,6 +18,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifndef sq
 #define sq(x) ((x)*(x))
@@ -55,6 +56,12 @@
 #define RADIANS_TO_CENTIDEGREES(angle) (((angle) * 100.0f) / RAD)
 #define CENTIDEGREES_TO_RADIANS(angle) (((angle) / 100.0f) * RAD)
 
+#define CENTIMETERS_TO_CENTIFEET(cm)            (cm * (328 / 100.0))
+#define CENTIMETERS_TO_FEET(cm)                 (cm * (328 / 10000.0))
+#define CENTIMETERS_TO_METERS(cm)               (cm / 100)
+
+#define METERS_TO_CENTIMETERS(m)                (m * 100)
+
 // copied from https://code.google.com/p/cxutil/source/browse/include/cxutil/utility.h#70
 #define _CHOOSE2(binoper, lexpr, lvar, rexpr, rvar)         \
     ( __extension__ ({                                      \
@@ -81,26 +88,7 @@
 #define _ABS_I(x, var) _ABS_II(x, var)
 #define ABS(x) _ABS_I(x, _CHOOSE_VAR(_abs, __COUNTER__))
 
-typedef struct stdev_s
-{
-    float m_oldM, m_newM, m_oldS, m_newS;
-    int m_n;
-} stdev_t;
-
-// Floating point 3 vector.
-typedef struct fp_vector {
-    float X;
-    float Y;
-    float Z;
-} t_fp_vector_def;
-
-typedef union {
-    float A[3];
-    t_fp_vector_def V;
-} t_fp_vector;
-
 // Floating point Euler angles.
-// Be carefull, could be either of degrees or radians.
 typedef struct fp_angles {
     float roll;
     float pitch;
@@ -111,6 +99,12 @@ typedef union {
     float raw[3];
     fp_angles_def angles;
 } fp_angles_t;
+
+typedef struct stdev_s
+{
+    float m_oldM, m_newM, m_oldS, m_newS;
+    int m_n;
+} stdev_t;
 
 typedef struct filterWithBufferSample_s {
     float value;
@@ -131,8 +125,8 @@ typedef struct {
 void sensorCalibrationResetState(sensorCalibrationState_t * state);
 void sensorCalibrationPushSampleForOffsetCalculation(sensorCalibrationState_t * state, int32_t sample[3]);
 void sensorCalibrationPushSampleForScaleCalculation(sensorCalibrationState_t * state, int axis, int32_t sample[3], int target);
-void sensorCalibrationSolveForOffset(sensorCalibrationState_t * state, float result[3]);
-void sensorCalibrationSolveForScale(sensorCalibrationState_t * state, float result[3]);
+bool sensorCalibrationSolveForOffset(sensorCalibrationState_t * state, float result[3]);
+bool sensorCalibrationSolveForScale(sensorCalibrationState_t * state, float result[3]);
 
 int gcd(int num, int denom);
 int32_t applyDeadband(int32_t value, int32_t deadband);
@@ -148,11 +142,6 @@ float degreesToRadians(int16_t degrees);
 
 int scaleRange(int x, int srcMin, int srcMax, int destMin, int destMax);
 float scaleRangef(float x, float srcMin, float srcMax, float destMin, float destMax);
-
-void normalizeV(struct fp_vector *src, struct fp_vector *dest);
-
-void rotateV(struct fp_vector *v, fp_angles_t *delta);
-void buildRotationMatrix(fp_angles_t *delta, float matrix[3][3]);
 
 int32_t wrap_18000(int32_t angle);
 int32_t wrap_36000(int32_t angle);
@@ -171,7 +160,9 @@ float cos_approx(float x);
 float atan2_approx(float y, float x);
 float acos_approx(float x);
 #define tan_approx(x)       (sin_approx(x) / cos_approx(x))
+#define asin_approx(x)      (M_PIf / 2 - acos_approx(x))
 #else
+#define asin_approx(x)      asinf(x)
 #define sin_approx(x)       sinf(x)
 #define cos_approx(x)       cosf(x)
 #define atan2_approx(y,x)   atan2f(y,x)

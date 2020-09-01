@@ -1,7 +1,7 @@
 # Building in windows light
 no cygwin and no path changes
 
-##Install Git for windows
+## Install Git for windows
 download https://github.com/git-for-windows/git/releases/download/v2.10.1.windows.1/Git-2.10.1-32-bit.exe
 
 Recommended install location is C:\Git (no spaces or special characters in path)
@@ -28,21 +28,21 @@ Follow images as not all are at default settings.
 
 ![Git Installation](assets/010.gitwin.png)
 
-##Install toolset scripts
+## Install toolset scripts
 download https://www.dropbox.com/s/hhlr16h657y4l5u/devtools.zip?dl=0
 
 extract it into C:\ it creates devtools folder
 
-##Install latest arm toolchain
+## Install latest arm toolchain
 download https://gcc.gnu.org/mirrors.html
 
 extract it into C:\devtools\gcc-arm-none-eabi-... (folder already there)
 
-##Install Ruby
+## Install Ruby
 
 Install the latest Ruby version using [Ruby Installer](https://rubyinstaller.org).
 
-##Test
+## Test
 Run C:\devtools\shF4.cmd
 
 If everything went according the manual you should be in mingw console window. (if not we need to update this manual)
@@ -70,11 +70,11 @@ git clone https://github.com/iNavFlight/inav
 
 ![GIT Checkout](assets/002.test.png)
 
-To compile your INAV binaries, enter the inav directory and build the project using the make command. You can append TARGET=[HARDWARE] if you want to build anything other than the default NAZE target:
+To compile your INAV binaries, enter the inav directory and build the project using the make command. You can append TARGET=[HARDWARE] if you want to build anything other than the default SPRACINGF3 target:
 
 ```bash
 cd inav
-make TARGET=NAZE
+make TARGET=SPRACINGF3
 ```
 
 ![GIT Checkout](assets/003.test.png)
@@ -83,13 +83,13 @@ within few moments you should have your binary ready:
 
 ```bash
 (...)
-arm-none-eabi-size ./obj/main/inav_NAZE.elf
+arm-none-eabi-size ./obj/main/inav_SPRACINGF3.elf
    text    data     bss     dec     hex filename
- 127468     916   16932  145316   237a4 ./obj/main/inav_NAZE.elf
-arm-none-eabi-objcopy -O ihex --set-start 0x8000000 obj/main/inav_NAZE.elf obj/inav_1.2.1_NAZE.hex
+ 127468     916   16932  145316   237a4 ./obj/main/inav_SPRACINGF3.elf
+arm-none-eabi-objcopy -O ihex --set-start 0x8000000 obj/main/inav_SPRACINGF3.elf obj/inav_1.2.1_SPRACINGF3.hex
 ```
 
-You can use the INAV-Configurator to flash the ```obj/inav_1.2.1_NAZE.hex``` file.
+You can use the INAV-Configurator to flash the ```obj/inav_1.2.1_SPRACINGF3.hex``` file.
 
 ## Updating and rebuilding
 
@@ -99,6 +99,6 @@ Navigate to the local inavflight repository and use the following steps to pull 
 cd inav
 git reset --hard
 git pull
-make clean TARGET=NAZE
+make clean TARGET=SPRACINGF3
 make
 ```

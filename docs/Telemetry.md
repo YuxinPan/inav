@@ -21,12 +21,54 @@ Smartport is a telemetry system used by newer FrSky transmitters such as the Tar
 
 More information about the implementation can be found here: https://github.com/frank26080115/cleanflight/wiki/Using-Smart-Port
 
-Smartport devices can be connected directly to STM32F3 boards such as the SPRacingF3 and Sparky, with a single straight through cable without the need for any hardware modifications on the FC or the receiver.
+Smartport devices are using _inverted_ serial protocol and as such can not be directly connected to all flight controllers. Depending on flight controller CPU family:
 
-For Smartport on F3 based boards, enable the telemetry inversion setting.
+| CPU family  | Direct connection   | Receiver _uninverted_ hack  | SoftwareSerial  | Additional hardware inverter  |
+| -----       | -----               | -----                       | -----           | -----                         |
+| STM32F1     | no possible (*)     | possible                    | possible        | possible                      |
+| STM32F3     | possible            | not required                | possible        | not required                  |
+| STM32F4     | not possible (*)    | possible                    | possible        | possible                      |
+| STM32F7     | possible            | not required                | possible        | not required                  |
+
+> * possible if flight controller has dedicated, additional, hardware inverter
+
+Smartport uses _57600bps_ serial speed.
+
+### Direct connection for F3/F7
+
+Only TX serial pin has to be connected to Smartport receiver. Disable `telemetry_inverted`.
 
 ```
-set telemetry_inversion = ON
+set telemetry_inverted = OFF
+set telemetry_uart_unidir = OFF
+```
+
+### Receiver univerted hack
+
+Some receivers (X4R, XSR and so on) can be hacked to get _uninverted_ Smartport signal. In this case connect uninverted signal to TX pad of chosen serial port and enable `telemetry_inverted`.
+
+```
+set telemetry_inverted = ON
+set telemetry_uart_unidir = OFF
+```
+
+### Software Serial
+
+Software emulated serial port allows to connect to Smartport receivers without any hacks. Only `TX` has to be connected to the receiver.
+
+```
+set telemetry_inverted = OFF
+```
+
+If solution above is not working, there is an alternative RX and TX lines have to be bridged using
+1kOhm resistor (confirmed working with 100Ohm, 1kOhm and 10kOhm)
+
+```
+SmartPort ---> RX (CH5 pad) ---> 1kOhm resistor ---> TX (CH6 pad)
+```
+
+```
+set telemetry_inverted = OFF
 ```
 
 ### SmartPort (S.Port) with external hardware inverter
@@ -44,11 +86,9 @@ It is possible to use DIY UART inverter to connect SmartPort receivers to F1 and
 When external inverter is used, following configuration has to be applied:
 
 ```
-set smartport_uart_unidir = ON
-set telemetry_inversion = OFF
+set telemetry_uart_unidir = ON
+set telemetry_inverted = ON
 ```
-
-This has been tested with Flip32 F4 / Airbot F4 and FrSky X4R-SB receiver.
 
 ### Available SmartPort (S.Port) sensors
 
@@ -58,11 +98,11 @@ The following sensors are transmitted
 * **VFAS** : actual vbat value.
 * **Curr** : actual current comsuption, in amps.
 * **Alt** : barometer based altitude, relative to home location.
-* **Fuel** : if `battery_capacity` variable set and variable `smartport_fuel_percent = ON` remaining battery percentage, mAh drawn otherwise.
+* **Fuel** : if `smartport_fuel_unit = PERCENT` remaining battery percentage sent, MAH drawn otherwise.
 * **GPS** : GPS coordinates.
 * **VSpd** : vertical speed, unit is cm/s.
 * **Hdg** : heading, North is 0°, South is 180°.
-* **AccX,Y,Z** : accelerometer values.
+* **AccX,Y,Z** : accelerometer values (not sent if `frsky_pitch_roll = ON`).
 * **Tmp1** : flight mode, sent as 5 digits. Number is sent as **ABCDE** detailed below. The numbers are additives (for example: if digit C is 6, it means both position hold and altitude hold are active) :
   * **A** : 1 = flaperon mode, 2 = auto tune mode, 4 = failsafe mode
   * **B** : 1 = return to home, 2 = waypoint mode, 4 = headfree mode
@@ -78,7 +118,9 @@ The following sensors are transmitted
 * **ASpd** : true air speed, from pitot sensor.
 * **A4** : average cell value. Warning : unlike FLVSS and MLVSS sensors, you do not get actual lowest value of a cell, but an average : (total lipo voltage) / (number of cells)
 * **0420** : distance to GPS home fix, in meters
-
+* **0430** : if `frsky_pitch_roll = ON` set this will be pitch degrees*10
+* **0440** : if `frsky_pitch_roll = ON` set this will be roll degrees*10
+* **0450** : 'Flight Path Vector' or 'Course over ground' in degrees*10
 ### Compatible SmartPort/INAV telemetry flight status
 
 To quickly and easily monitor these SmartPort sensors and flight modes, install [iNav LuaTelemetry](https://github.com/iNavFlight/LuaTelemetry) to your Taranis Q X7, X9D, X9D+ or X9E transmitter.
@@ -92,15 +134,15 @@ FrSky telemetry is transmit only and just requires a single connection from the 
 FrSky telemetry signals are inverted.  To connect a INAV capable board to an FrSKy receiver you have some options.
 
 1. A hardware inverter - Built in to some flight controllers.
-2. Use software serial and enable frsky_inversion.
-3. Use a flight controller that has software configurable hardware inversion (e.g. STM32F30x).
+2. Use software serial.
+3. Use a flight controller that has software configurable hardware inversion (e.g. F3 or F7).
 
 For 1, just connect your inverter to a usart or software serial port.
 
 For 2 and 3 use the CLI command as follows:
 
 ```
-set telemetry_inversion = ON
+set telemetry_inverted = OFF
 ```
 
 ### Precision setting for VFAS
@@ -120,10 +162,10 @@ This is new setting which supports VFAS resolution of 0.1 volts and is supported
 
 ### Notes
 
+Many of the same SmartPort telemetry values listed above are also sent with FrSky D-Series telemetry.
+
 RPM shows throttle output when armed.
 RPM shows when disarmed.
-TEMP2 shows Satellite Signal Quality when GPS is enabled.
-
 RPM requires that the 'blades' setting is set to 12 on your receiver/display - tested with Taranis/OpenTX.
 
 ## HoTT telemetry
@@ -134,6 +176,9 @@ Use the latest Graupner firmware for your transmitter and receiver.
 
 Older HoTT transmitters required the EAM and GPS modules to be enabled in the telemetry menu of the transmitter. (e.g. on MX-20)
 
+You can use a single connection, connect HoTT RX/TX only to serial TX, leave serial RX open and make sure the setting `telemetry_uart_unidir` is OFF.
+
+The following information is deprecated, use only for compatibility:
 Serial ports use two wires but HoTT uses a single wire so some electronics are required so that the signals don't get mixed up.  The TX and RX pins of
 a serial port should be connected using a diode and a single wire to the `T` port on a HoTT receiver.
 
@@ -149,6 +194,8 @@ The diode should be arranged to allow the data signals to flow the right way
 ```
 
 1N4148 diodes have been tested and work with the GR-24.
+
+When using the diode enable `telemetry_uart_unidir`, go to CLI and type `set telemetry_uart_unidir = ON`, don't forget a `save` afterwards.
 
 As noticed by Skrebber the GR-12 (and probably GR-16/24, too) are based on a PIC 24FJ64GA-002, which has 5V tolerant digital pins.
 
@@ -200,6 +247,26 @@ INAV supports MAVLink for compatibility with ground stations, OSDs and antenna t
 for PX4, PIXHAWK, APM and Parrot AR.Drone platforms.
 
 MAVLink implementation in INAV is transmit-only and usable on low baud rates and can be used over soft serial.
+
+
+## Cellular telemetry via text messages
+
+INAV can use a SimCom SIM800 series cellular module to provide telemetry via text messages. Telemetry messages can be requested by calling the module's number or sending it a text message. The module can be set to transmit messages at regular intervals, or when an acceleration event is detected. A text message command can be used to put the flight controller into RTH mode.
+
+The telemetry message looks like this:
+```
+12.34V 2.0A ALT:5 SPD:10/13.6 DIS:78/19833 HDG:16 SAT:21  SIG:9 ANG maps.google.com/?q=6FG22222%2B222
+```
+giving battery voltage, current, altitude (m), speed / average speed (m/s), distance to home / total traveled distance (m), heading (degrees), number of satellites, cellular signal strength, flight mode and GPS coordinates as a Google Maps link. `SIG` has a range of 0 -- 31, with a value of 10 or higher indicating a usable signal quality.
+
+Transmission at regular intervals can be set by giving a string of flags in the CLI variable `sim_transmit_flags`: `T` - transmit continuously, `F` - transmit in failsafe mode, `A` - transmit when altitude is lower than `sim_low_altitude`, `G` - transmit when GPS signal quality is low. `A` only transmits in ALT HOLD, WAYPOINT, RTH, and FAILSAFE flight modes. The transmission interval is given by `sim_transmit_interval` and is 60 seconds by default.
+
+Text messages sent to the module can be used to set the transmission flags during flight, or to issue a RTH command to the flight controller. If a message begins with `RTH` it toggles forced RTH on / off, otherwise it is taken as a value for `sim_transmit_flags`. Note that an empty message turns transmission off, setting all flags to zero.
+
+Acceleration events are indicated at the beginning of the message as follows: `HIT!` indicates impact / high g event, `HIT` indicates landing / backwards acceleration event, `DROP` indicates freefall / low g event.
+
+To receive acceleration event messages, set one or more of the acceleration event threshold CLI variables to a nonzero value, and use the `A` flag in `sim_transmit_flags`. `acc_event_threshold_high` is the threshold (in cm/s/s) for impact detection by high magnitude of acceleration. `acc_event_threshold_low` is the threshold for freefall detection by low magnitude of acceleration. `acc_event_threshold_neg_x` is the threshold for landing detection (for fixed wing models) by high magnitude of negative x axis acceleration.
+
 
 ## Ibus telemetry
 
@@ -320,6 +387,8 @@ This required a receiver with new firmware that support SNR, RSSI and long frame
 
 7.This same as 6, but sensor 3 is GPS_STATUS, 10 is ARMED, 16 is MODE.
 
+8.This same as 7, but sensor 10 (ARMED) is reversed.
+
 131.This same as 3, but sensor 16 (type SPEED) is in m/s.
 
 132.This same as 4, but sensor 16 (type SPEED) is in m/s.
@@ -329,6 +398,8 @@ This required a receiver with new firmware that support SNR, RSSI and long frame
 134.This same as 6, but sensor 11 (type SPEED) is in m/s.
 
 135.This same as 7, but sensor 11 (type SPEED) is in m/s.
+
+136.This same as 8, but sensor 11 (type SPEED) is in m/s.
 
 ### RX hardware
 

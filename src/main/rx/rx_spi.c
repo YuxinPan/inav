@@ -24,9 +24,11 @@
 
 #include "build/build_config.h"
 
-#include "drivers/rx_nrf24l01.h"
+#include "common/utils.h"
 
 #include "config/feature.h"
+
+#include "drivers/rx_nrf24l01.h"
 
 #include "fc/config.h"
 
@@ -40,12 +42,12 @@
 #include "rx/nrf24_inav.h"
 
 
-uint16_t rxSpiRcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];
+static uint16_t rxSpiRcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];
 STATIC_UNIT_TESTED uint8_t rxSpiPayload[RX_SPI_MAX_PAYLOAD_SIZE];
 STATIC_UNIT_TESTED uint8_t rxSpiNewPacketAvailable; // set true when a new packet is received
 
 typedef void (*protocolInitPtr)(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig);
-typedef rx_spi_received_e (*protocolDataReceivedPtr)(uint8_t *payload);
+typedef rx_spi_received_e (*protocolDataReceivedPtr)(uint8_t *payload, uint16_t *linkQuality);
 typedef void (*protocolSetRcDataFromPayloadPtr)(uint16_t *rcData, const uint8_t *payload);
 
 static protocolInitPtr protocolInit;
@@ -123,9 +125,12 @@ STATIC_UNIT_TESTED bool rxSpiSetProtocol(rx_spi_protocol_e protocol)
  * Called from updateRx in rx.c, updateRx called from taskUpdateRxCheck.
  * If taskUpdateRxCheck returns true, then taskUpdateRxMain will shortly be called.
  */
-uint8_t rxSpiFrameStatus(void)
+static uint8_t rxSpiFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
-    if (protocolDataReceived(rxSpiPayload) == RX_SPI_RECEIVED_DATA) {
+    uint16_t linkQuality = 0;
+
+    if (protocolDataReceived(&rxSpiPayload[0], &linkQuality) == RX_SPI_RECEIVED_DATA) {
+        lqTrackerSet(rxRuntimeConfig->lqTracker, linkQuality);
         rxSpiNewPacketAvailable = true;
         return RX_FRAME_COMPLETE;
     }
@@ -144,10 +149,12 @@ bool rxSpiInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
         protocolInit(rxConfig, rxRuntimeConfig);
         ret = true;
     }
+
     rxRuntimeConfig->rxRefreshRate = 10000;
     rxSpiNewPacketAvailable = false;
     rxRuntimeConfig->rcReadRawFn = rxSpiReadRawRC;
     rxRuntimeConfig->rcFrameStatusFn = rxSpiFrameStatus;
+
     return ret;
 }
 #endif

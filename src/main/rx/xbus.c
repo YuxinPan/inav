@@ -255,8 +255,10 @@ static void xBusDataReceive(uint16_t c, void *rxCallbackData)
 }
 
 // Indicate time to read a frame from the data...
-uint8_t xBusFrameStatus(void)
+static uint8_t xBusFrameStatus(rxRuntimeConfig_t *rxRuntimeConfig)
 {
+    UNUSED(rxRuntimeConfig);
+
     if (!xBusFrameReceived) {
         return RX_FRAME_PENDING;
     }
@@ -332,7 +334,7 @@ bool xBusInit(const rxConfig_t *rxConfig, rxRuntimeConfig_t *rxRuntimeConfig)
         NULL,
         baudRate,
         portShared ? MODE_RXTX : MODE_RX,
-        SERIAL_NOT_INVERTED | (rxConfig->halfDuplex ? SERIAL_BIDIR : 0)
+        SERIAL_NOT_INVERTED | (tristateWithDefaultOffIsActive(rxConfig->halfDuplex) ? SERIAL_BIDIR : 0)
         );
 
 #ifdef USE_TELEMETRY

@@ -18,9 +18,6 @@
 #pragma once
 
 #define TARGET_BOARD_IDENTIFIER "SP3N"
-#define TARGET_CONFIG
-
-#define CONFIG_FASTLOOP_PREFERRED_ACC ACC_DEFAULT
 
 #define LED0                    PB9
 #define LED1                    PB2
@@ -29,22 +26,15 @@
 #define BEEPER_INVERTED
 
 #define USE_EXTI
-#define MPU_INT_EXTI            PC13
+#define GYRO_INT_EXTI            PC13
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
 
-#define USE_GYRO
-#define USE_GYRO_MPU6500
-#define USE_GYRO_MPU9250
+#define USE_IMU_MPU6500
+#define IMU_MPU6500_ALIGN       CW0_DEG
 
-#define USE_ACC
-#define USE_ACC_MPU6500
-#define USE_ACC_MPU9250
-
-#define ACC_MPU6500_ALIGN       CW0_DEG
-#define GYRO_MPU6500_ALIGN      CW0_DEG
-#define ACC_MPU9250_ALIGN       CW0_DEG
-#define GYRO_MPU9250_ALIGN      CW0_DEG
+#define USE_IMU_MPU9250
+#define IMU_MPU9250_ALIGN       CW0_DEG
 
 #define MPU6500_CS_PIN          SPI1_NSS_PIN
 #define MPU6500_SPI_BUS         BUS_SPI1
@@ -63,7 +53,9 @@
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
 #define USE_MAG_IST8310
+#define USE_MAG_IST8308
 #define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_VCP
 #define USE_UART1
@@ -84,9 +76,6 @@
 
 #define UART3_TX_PIN            PB10
 #define UART3_RX_PIN            PB11
-
-#define USE_ESCSERIAL
-#define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
 
 #define USE_I2C
 #define USE_I2C_DEVICE_1
@@ -111,37 +100,23 @@
 #define SPI3_MISO_PIN           PB4
 #define SPI3_MOSI_PIN           PB5
 
-#define VTX_RTC6705
-#define VTX_RTC6705_OPTIONAL    // VTX/OSD board is OPTIONAL
+#undef USE_VTX_FFPV
+#undef USE_VTX_SMARTAUDIO           // Disabled due to flash size
+#undef USE_VTX_TRAMP                // Disabled due to flash size
 
-#undef VTX_SMARTAUDIO           // Disabled due to flash size
-#undef VTX_TRAMP                // Disabled due to flash size
-
-#define RTC6705_CS_PIN          PF4
-#define RTC6705_SPI_INSTANCE    SPI3
-#define RTC6705_POWER_PIN       PC3
-
-#define USE_RTC6705_CLK_HACK
-#define RTC6705_CLK_PIN         SPI3_SCK_PIN
+#undef USE_PITOT                    // Disabled due to RAM size
+#undef USE_PITOT_ADC                // Disabled due to RAM size
 
 #define USE_MAX7456
 #define MAX7456_SPI_BUS         BUS_SPI3
 #define MAX7456_CS_PIN          PA15
 
-#define SPI_SHARED_MAX7456_AND_RTC6705
-
 #define USE_SDCARD
-#define USE_SDCARD_SPI2
-
+#define USE_SDCARD_SPI
 #define SDCARD_DETECT_INVERTED
-
 #define SDCARD_DETECT_PIN       PC14
-#define SDCARD_SPI_INSTANCE     SPI2
-#define SDCARD_SPI_CS_PIN       SPI2_NSS_PIN
-
-// Note, this is the same DMA channel as UART1_RX. Luckily we don't use DMA for USART Rx.
-#define SDCARD_DMA_CHANNEL_TX               DMA1_Channel5
-#define SDCARD_DMA_CHANNEL_TX_COMPLETE_FLAG DMA1_FLAG_TC5
+#define SDCARD_SPI_BUS          BUS_SPI2
+#define SDCARD_CS_PIN           SPI2_NSS_PIN
 
 #define USE_ADC
 #define ADC_INSTANCE            ADC1
@@ -152,15 +127,8 @@
 #define CURRENT_METER_ADC_CHANNEL       ADC_CHN_2
 #define RSSI_ADC_CHANNEL                ADC_CHN_3
 
-
-#define USE_LED_STRIP_ON_DMA1_CHANNEL2
+#define USE_LED_STRIP
 #define WS2811_PIN                      PA8
-#define WS2811_TIMER                    TIM1
-#define WS2811_DMA_CHANNEL              DMA1_Channel2
-#define WS2811_IRQ                      DMA1_Channel2_IRQn
-#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC2
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
-#define WS2811_TIMER_GPIO_AF            GPIO_AF_6
 
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
@@ -192,5 +160,4 @@
 #define TARGET_IO_PORTD (BIT(2))
 #define TARGET_IO_PORTF (BIT(0)|BIT(1)|BIT(4))
 
-#define USABLE_TIMER_CHANNEL_COUNT 11 // 2xPPM, 6xPWM, UART3 RX/TX, LED Strip, IR.
-#define USED_TIMERS  (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(8) | TIM_N(15) | TIM_N(16))
+#undef USE_TELEMETRY_FRSKY

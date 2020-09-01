@@ -30,7 +30,7 @@
 #include "asyncfatfs.h"
 
 #include "fat_standard.h"
-#include "drivers/sdcard.h"
+#include "drivers/sdcard/sdcard.h"
 
 #ifdef AFATFS_DEBUG
     #define ONLY_EXPOSE_FOR_TESTING
@@ -418,11 +418,6 @@ typedef enum {
     AFATFS_INITIALIZATION_FREEFILE_LAST = AFATFS_INITIALIZATION_FREEFILE_SAVE_DIR_ENTRY,
 #endif
 
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-    AFATFS_INITIALIZATION_INTROSPEC_LOG_CREATE,
-    AFATFS_INITIALIZATION_INTROSPEC_LOG_CREATING,
-#endif
-
     AFATFS_INITIALIZATION_DONE
 } afatfsInitializationPhase_e;
 
@@ -451,10 +446,6 @@ typedef struct afatfs_t {
 
 #ifdef AFATFS_USE_FREEFILE
     afatfsFile_t freeFile;
-#endif
-
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-    afatfsFile_t introSpecLog;
 #endif
 
     afatfsError_e lastError;
@@ -2117,6 +2108,25 @@ afatfsOperationStatus_e afatfs_fseek(afatfsFilePtr_t file, int32_t offset, afatf
 }
 
 /**
+ * Attempt to seek the file cursor from the given point (`whence`) by the given offset, just like C's fseek().
+ *
+ * AFATFS_SEEK_SET with offset 0 will always return AFATFS_OPERATION_SUCCESS.
+ *
+ * Returns:
+ *     AFATFS_OPERATION_SUCCESS     - The seek was completed immediately
+ *     AFATFS_OPERATION_IN_PROGRESS - The seek was queued and will complete later. Feel free to attempt read/write
+ *                                    operations on the file, they'll fail until the seek is complete.
+ */
+afatfsOperationStatus_e afatfs_fseekSync(afatfsFilePtr_t file, int32_t offset, afatfsSeek_e whence)
+{
+    while (afatfs_fileIsBusy(file)) {
+        afatfs_poll();
+    }
+
+    return afatfs_fseek(file, offset, whence);
+}
+
+/**
  * Get the byte-offset of the file's cursor from the start of the file.
  *
  * Returns true on success, or false if the file is busy (try again later).
@@ -2545,7 +2555,9 @@ static void afatfs_createFileContinue(afatfsFile_t *file)
     afatfsCreateFile_t *opState = &file->operation.state.createFile;
     fatDirectoryEntry_t *entry;
     afatfsOperationStatus_e status;
+#ifndef BOOTLOADER
     dateTime_t now;
+#endif
 
     doMore:
 
@@ -2605,13 +2617,17 @@ static void afatfs_createFileContinue(afatfsFile_t *file)
 
                 memcpy(entry->filename, opState->filename, FAT_FILENAME_LENGTH);
                 entry->attrib = file->attrib;
-                if (rtcGetDateTime(&now)) {
+#ifndef BOOTLOADER
+                if (rtcGetDateTimeLocal(&now)) {
                     entry->creationDate = FAT_MAKE_DATE(now.year, now.month, now.day);
                     entry->creationTime = FAT_MAKE_TIME(now.hours, now.minutes, now.seconds);
                 } else {
+#endif
                     entry->creationDate = AFATFS_DEFAULT_FILE_DATE;
                     entry->creationTime = AFATFS_DEFAULT_FILE_TIME;
+#ifndef BOOTLOADER
                 }
+#endif
                 entry->lastWriteDate = entry->creationDate;
                 entry->lastWriteTime = entry->creationTime;
 
@@ -2877,6 +2893,20 @@ bool afatfs_fclose(afatfsFilePtr_t file, afatfsCallback_t callback)
 }
 
 /**
+ * Close `file` immediately
+ */
+void afatfs_fcloseSync(afatfsFilePtr_t file)
+{
+    for(unsigned i = 0; i < 1000; ++i) {
+        afatfs_poll();
+    }
+    afatfs_fclose(file, NULL);
+    for(unsigned i = 0; i < 1000; ++i) {
+        afatfs_poll();
+    }
+}
+
+/**
  * Create a new directory with the given name, or open the directory if it already exists.
  *
  * The directory will be passed to the callback, or NULL if the creation failed.
@@ -3007,6 +3037,11 @@ bool afatfs_fopen(const char *filename, const char *mode, afatfsFileCallback_t c
     return file != NULL;
 }
 
+uint32_t afatfs_fileSize(afatfsFilePtr_t file)
+{
+    return file->logicalSize;
+}
+
 /**
  * Write a single character to the file at the current cursor position. If the cache is too busy to accept the write,
  * it is silently dropped.
@@ -3097,6 +3132,39 @@ uint32_t afatfs_fwrite(afatfsFilePtr_t file, const uint8_t *buffer, uint32_t len
 }
 
 /**
+ * Attempt to write `len` bytes from `buffer` into the `file`.
+ *
+ * Returns the number of bytes actually written
+ *
+ * Fewer bytes than requested will be read when EOF is reached before all the bytes could be read
+ */
+uint32_t afatfs_fwriteSync(afatfsFilePtr_t file, uint8_t *data, uint32_t length)
+{
+    uint32_t written = 0;
+
+    while (true) {
+        uint32_t leftToWrite = length - written;
+        uint32_t justWritten = afatfs_fwrite(file, data + written, leftToWrite);
+        /*if (justWritten != leftToWrite) LOG_E(SYSTEM, "%ld -> %ld", length, written);*/
+        written += justWritten;
+
+        if (written < length) {
+
+            if (afatfs_isFull()) {
+                break;
+            }
+
+            afatfs_poll();
+
+        } else {
+            break;
+        }
+    }
+
+    return written;
+}
+
+/**
  * Attempt to read `len` bytes from `file` into the `buffer`.
  *
  * Returns the number of bytes actually read.
@@ -3166,6 +3234,37 @@ uint32_t afatfs_fread(afatfsFilePtr_t file, uint8_t *buffer, uint32_t len)
 }
 
 /**
+ * Attempt to read `len` bytes from `file` into the `buffer`.
+ *
+ * Returns the number of bytes actually read.
+ *
+ * Fewer bytes than requested will be read when EOF is reached before all the bytes could be read
+ */
+uint32_t afatfs_freadSync(afatfsFilePtr_t file, uint8_t *buffer, uint32_t length)
+{
+    uint32_t bytesRead = 0;
+
+    while (true) {
+        uint32_t leftToRead = length - bytesRead;
+        uint32_t readNow = afatfs_fread(file, buffer, leftToRead);
+        bytesRead += readNow;
+        if (bytesRead < length) {
+
+            if (afatfs_feof(file)) {
+                break;
+            }
+
+            afatfs_poll();
+
+        } else {
+            break;
+        }
+    }
+
+    return bytesRead;
+}
+
+/**
  * Returns true if the file's pointer position currently lies at the end-of-file point (i.e. one byte beyond the last
  * byte in the file).
  */
@@ -3224,10 +3323,6 @@ static void afatfs_fileOperationContinue(afatfsFile_t *file)
 static void afatfs_fileOperationsPoll(void)
 {
     afatfs_fileOperationContinue(&afatfs.currentDirectory);
-
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-    afatfs_fileOperationContinue(&afatfs.introSpecLog);
-#endif
 
     for (int i = 0; i < AFATFS_MAX_OPEN_FILES; i++) {
         afatfs_fileOperationContinue(&afatfs.openFiles[i]);
@@ -3357,20 +3452,6 @@ static void afatfs_freeFileCreated(afatfsFile_t *file)
 
 #endif
 
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-
-static void afatfs_introspecLogCreated(afatfsFile_t *file)
-{
-    if (file) {
-        afatfs.initPhase++;
-    } else {
-        afatfs.lastError = AFATFS_ERROR_GENERIC;
-        afatfs.filesystemState = AFATFS_FILESYSTEM_STATE_FATAL;
-    }
-}
-
-#endif
-
 static void afatfs_initContinue(void)
 {
 #ifdef AFATFS_USE_FREEFILE
@@ -3479,18 +3560,6 @@ static void afatfs_initContinue(void)
         break;
 #endif
 
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-        case AFATFS_INITIALIZATION_INTROSPEC_LOG_CREATE:
-            afatfs.initPhase = AFATFS_INITIALIZATION_INTROSPEC_LOG_CREATING;
-
-            afatfs_createFile(&afatfs.introSpecLog, AFATFS_INTROSPEC_LOG_FILENAME, FAT_FILE_ATTRIBUTE_ARCHIVE,
-                AFATFS_FILE_MODE_CREATE | AFATFS_FILE_MODE_APPEND, afatfs_introspecLogCreated);
-        break;
-        case AFATFS_INITIALIZATION_INTROSPEC_LOG_CREATING:
-            afatfs_fileOperationContinue(&afatfs.introSpecLog);
-        break;
-#endif
-
         case AFATFS_INITIALIZATION_DONE:
             afatfs.filesystemState = AFATFS_FILESYSTEM_STATE_READY;
         break;
@@ -3520,50 +3589,6 @@ void afatfs_poll(void)
     }
 }
 
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-
-void afatfs_sdcardProfilerCallback(sdcardBlockOperation_e operation, uint32_t blockIndex, uint32_t duration)
-{
-    // Make sure the log file has actually been opened before we try to log to it:
-    if (afatfs.introSpecLog.type == AFATFS_FILE_TYPE_NONE) {
-        return;
-    }
-
-    enum {
-        LOG_ENTRY_SIZE = 16 // Log entry size should be a power of two to avoid partial fwrites()
-    };
-
-    uint8_t buffer[LOG_ENTRY_SIZE];
-
-    buffer[0] = operation;
-
-    // Padding/reserved:
-    buffer[1] = 0;
-    buffer[2] = 0;
-    buffer[3] = 0;
-
-    buffer[4] = blockIndex & 0xFF;
-    buffer[5] = (blockIndex >> 8) & 0xFF;
-    buffer[6] = (blockIndex >> 16) & 0xFF;
-    buffer[7] = (blockIndex >> 24) & 0xFF;
-
-    buffer[8] = duration & 0xFF;
-    buffer[9] = (duration >> 8) & 0xFF;
-    buffer[10] = (duration >> 16) & 0xFF;
-    buffer[11] = (duration >> 24) & 0xFF;
-
-    // Padding/reserved:
-    buffer[12] = 0;
-    buffer[13] = 0;
-    buffer[14] = 0;
-    buffer[15] = 0;
-
-    // Ignore write failures
-    afatfs_fwrite(&afatfs.introSpecLog, buffer, LOG_ENTRY_SIZE);
-}
-
-#endif
-
 afatfsFilesystemState_e afatfs_getFilesystemState(void)
 {
     return afatfs.filesystemState;
@@ -3579,10 +3604,6 @@ void afatfs_init(void)
     afatfs.filesystemState = AFATFS_FILESYSTEM_STATE_INITIALIZATION;
     afatfs.initPhase = AFATFS_INITIALIZATION_READ_MBR;
     afatfs.lastClusterAllocated = FAT_SMALLEST_LEGAL_CLUSTER_NUMBER;
-
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-    sdcard_setProfilerCallback(afatfs_sdcardProfilerCallback);
-#endif
 }
 
 /**
@@ -3603,13 +3624,6 @@ bool afatfs_destroy(bool dirty)
                 openFileCount++;
             }
         }
-
-#ifdef AFATFS_USE_INTROSPECTIVE_LOGGING
-        if (afatfs.introSpecLog.type != AFATFS_FILE_TYPE_NONE) {
-            afatfs_fclose(&afatfs.introSpecLog, NULL);
-            openFileCount++;
-        }
-#endif
 
 #ifdef AFATFS_USE_FREEFILE
         if (afatfs.freeFile.type != AFATFS_FILE_TYPE_NONE) {

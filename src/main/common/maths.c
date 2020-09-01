@@ -21,6 +21,11 @@
 
 #include "axis.h"
 #include "maths.h"
+#include "vector.h"
+#include "quaternion.h"
+#include "platform.h"
+
+FILE_COMPILE_FOR_SPEED
 
 // http://lolengine.net/blog/2011/12/21/better-function-approximations
 // Chebyshev http://stackoverflow.com/questions/345085/how-do-trigonometric-functions-work/345117#345117
@@ -203,59 +208,65 @@ float scaleRangef(float x, float srcMin, float srcMax, float destMin, float dest
     return ((a / b) + destMin);
 }
 
-// Normalize a vector
-void normalizeV(struct fp_vector *src, struct fp_vector *dest)
-{
-    float length;
-
-    length = sqrtf(src->X * src->X + src->Y * src->Y + src->Z * src->Z);
-    if (length != 0) {
-        dest->X = src->X / length;
-        dest->Y = src->Y / length;
-        dest->Z = src->Z / length;
-    }
-}
-
-void buildRotationMatrix(fp_angles_t *delta, float matrix[3][3])
+// Build rMat from Tait–Bryan angles (convention X1, Y2, Z3)
+void rotationMatrixFromAngles(fpMat3_t * rmat, const fp_angles_t * angles)
 {
     float cosx, sinx, cosy, siny, cosz, sinz;
     float coszcosx, sinzcosx, coszsinx, sinzsinx;
 
-    cosx = cos_approx(delta->angles.roll);
-    sinx = sin_approx(delta->angles.roll);
-    cosy = cos_approx(delta->angles.pitch);
-    siny = sin_approx(delta->angles.pitch);
-    cosz = cos_approx(delta->angles.yaw);
-    sinz = sin_approx(delta->angles.yaw);
+    cosx = cos_approx(angles->angles.roll);
+    sinx = sin_approx(angles->angles.roll);
+    cosy = cos_approx(angles->angles.pitch);
+    siny = sin_approx(angles->angles.pitch);
+    cosz = cos_approx(angles->angles.yaw);
+    sinz = sin_approx(angles->angles.yaw);
 
     coszcosx = cosz * cosx;
     sinzcosx = sinz * cosx;
     coszsinx = sinx * cosz;
     sinzsinx = sinx * sinz;
 
-    matrix[0][X] = cosz * cosy;
-    matrix[0][Y] = -cosy * sinz;
-    matrix[0][Z] = siny;
-    matrix[1][X] = sinzcosx + (coszsinx * siny);
-    matrix[1][Y] = coszcosx - (sinzsinx * siny);
-    matrix[1][Z] = -sinx * cosy;
-    matrix[2][X] = (sinzsinx) - (coszcosx * siny);
-    matrix[2][Y] = (coszsinx) + (sinzcosx * siny);
-    matrix[2][Z] = cosy * cosx;
+    rmat->m[0][X] = cosz * cosy;
+    rmat->m[0][Y] = -cosy * sinz;
+    rmat->m[0][Z] = siny;
+    rmat->m[1][X] = sinzcosx + (coszsinx * siny);
+    rmat->m[1][Y] = coszcosx - (sinzsinx * siny);
+    rmat->m[1][Z] = -sinx * cosy;
+    rmat->m[2][X] = (sinzsinx) - (coszcosx * siny);
+    rmat->m[2][Y] = (coszsinx) + (sinzcosx * siny);
+    rmat->m[2][Z] = cosy * cosx;
 }
 
-// Rotate a vector *v by the euler angles defined by the 3-vector *delta.
-void rotateV(struct fp_vector *v, fp_angles_t *delta)
+void rotationMatrixFromAxisAngle(fpMat3_t * rmat, const fpAxisAngle_t * a)
 {
-    struct fp_vector v_tmp = *v;
+    const float sang = sin_approx(a->angle);
+    const float cang = cos_approx(a->angle);
+    const float C = 1.0f - cang;
 
-    float matrix[3][3];
+    const float xC  = a->axis.x * C;
+    const float yC  = a->axis.y * C;
+    const float zC  = a->axis.z * C;
+    const float xxC = a->axis.x * xC;
+    const float yyC = a->axis.y * yC;
+    const float zzC = a->axis.z * zC;
+    const float xyC = a->axis.x * yC;
+    const float yzC = a->axis.y * zC;
+    const float zxC = a->axis.z * xC;
+    const float xs  = a->axis.x * sang;
+    const float ys  = a->axis.y * sang;
+    const float zs  = a->axis.z * sang;
 
-    buildRotationMatrix(delta, matrix);
+    rmat->m[0][X] = xxC + cang;
+    rmat->m[0][Y] = xyC - zs;
+    rmat->m[0][Z] = zxC + ys;
 
-    v->X = v_tmp.X * matrix[0][X] + v_tmp.Y * matrix[1][X] + v_tmp.Z * matrix[2][X];
-    v->Y = v_tmp.X * matrix[0][Y] + v_tmp.Y * matrix[1][Y] + v_tmp.Z * matrix[2][Y];
-    v->Z = v_tmp.X * matrix[0][Z] + v_tmp.Y * matrix[1][Z] + v_tmp.Z * matrix[2][Z];
+    rmat->m[1][X] = zxC + ys;
+    rmat->m[1][Y] = yyC + cang;
+    rmat->m[1][Z] = yzC - xs;
+
+    rmat->m[2][X] = zxC - ys;
+    rmat->m[2][Y] = yzC + xs;
+    rmat->m[2][Z] = zzC + cang;
 }
 
 // Quick median filter implementation
@@ -455,7 +466,19 @@ static void sensorCalibration_SolveLGS(float A[4][4], float x[4], float b[4]) {
     sensorCalibration_BackwardSubstitution(A, x, y);
 }
 
-void sensorCalibrationSolveForOffset(sensorCalibrationState_t * state, float result[3])
+bool sensorCalibrationValidateResult(const float result[3])
+{
+    // Validate that result is not INF and not NAN
+    for (int i = 0; i < 3; i++) {
+        if (isnan(result[i]) && isinf(result[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool sensorCalibrationSolveForOffset(sensorCalibrationState_t * state, float result[3])
 {
     float beta[4];
     sensorCalibration_SolveLGS(state->XtX, beta, state->XtY);
@@ -463,9 +486,11 @@ void sensorCalibrationSolveForOffset(sensorCalibrationState_t * state, float res
     for (int i = 0; i < 3; i++) {
         result[i] = beta[i] / 2;
     }
+
+    return sensorCalibrationValidateResult(result);
 }
 
-void sensorCalibrationSolveForScale(sensorCalibrationState_t * state, float result[3])
+bool sensorCalibrationSolveForScale(sensorCalibrationState_t * state, float result[3])
 {
     float beta[4];
     sensorCalibration_SolveLGS(state->XtX, beta, state->XtY);
@@ -473,6 +498,8 @@ void sensorCalibrationSolveForScale(sensorCalibrationState_t * state, float resu
     for (int i = 0; i < 3; i++) {
         result[i] = sqrtf(beta[i]);
     }
+
+    return sensorCalibrationValidateResult(result);
 }
 
 float bellCurve(const float x, const float curveWidth)

@@ -19,6 +19,10 @@
 
 #include "fc/rc_modes.h"
 
+#define BOX_PERMANENT_ID_USER1      47
+#define BOX_PERMANENT_ID_USER2      48
+#define BOX_PERMANENT_ID_NONE       255       // A permanent ID for no box mode
+
 typedef struct box_s {
     const uint8_t boxId;            // see boxId_e
     const char *boxName;            // GUI-readable box name

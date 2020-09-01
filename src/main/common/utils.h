@@ -28,11 +28,23 @@
 #define CONCAT_HELPER(x,y) x ## y
 #define CONCAT(x,y) CONCAT_HELPER(x, y)
 
+#define CONCAT3_HELPER(x, y, z) x ## y ## z
+#define CONCAT3(x, y, z) CONCAT3_HELPER(x, y, z)
+
+#define CONCAT4_HELPER(x, y, z, w) x ## y ## z ## w
+#define CONCAT4(x, y, z, w) CONCAT4_HELPER(x, y, z, w)
+
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
 #define EXPAND_I(x) x
 #define EXPAND(x) EXPAND_I(x)
+
+// Expand all argumens and call macro with them. When expansion of some argument contains ',', it will be passed as multiple arguments
+// #define TAKE3(_1,_2,_3) CONCAT3(_1,_2,_3)
+// #define MULTI2 A,B
+// PP_CALL(TAKE3, MULTI2, C) expands to ABC
+#define PP_CALL(macro, ...) macro(__VA_ARGS__)
 
 #if !defined(UNUSED)
 #define UNUSED(x) (void)(x)
@@ -40,6 +52,7 @@
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 
 #define BIT(x) (1 << (x))
+#define GET_BIT(value, bit) ((value >> bit) & 1)
 
 #define STATIC_ASSERT(condition, name) \
     typedef char assert_failed_ ## name [(condition) ? 1 : -1 ] __attribute__((unused))
@@ -97,4 +110,8 @@ void * memcpy_fn ( void * destination, const void * source, size_t num ) asm("me
 #define FALLTHROUGH do {} while(0)
 #endif
 
+#define UNREACHABLE() __builtin_unreachable()
+
 #define ALIGNED(x) __attribute__ ((aligned(x)))
+
+#define PACKED __attribute__((packed))

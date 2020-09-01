@@ -27,8 +27,6 @@
 
 #include <platform.h>
 
-#ifdef USE_TARGET_CONFIG
-
 #include "io/serial.h"
 #include "rx/rx.h"
 #include "telemetry/telemetry.h"
@@ -36,6 +34,4 @@
 void targetConfiguration(void)
 {
     serialConfigMutable()->portConfigs[findSerialPortIndexByIdentifier(TELEMETRY_UART)].functionMask = FUNCTION_TELEMETRY_SMARTPORT;
-    telemetryConfigMutable()->telemetry_inversion = true;
 }
-#endif

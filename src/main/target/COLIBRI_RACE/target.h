@@ -26,9 +26,12 @@
 #define BEEPER                  PB13
 #define BEEPER_INVERTED
 
+#define USE_DSHOT
+#define USE_ESC_SENSOR
+
 // MPU6500 interrupt
 #define USE_EXTI
-#define MPU_INT_EXTI            PA5
+#define GYRO_INT_EXTI            PA5
 #define USE_MPU_DATA_READY_SIGNAL
 #define ENSURE_MPU_DATA_READY_IS_LOW
 
@@ -49,21 +52,12 @@
 #define MPU9250_CS_PIN          SPI1_NSS_PIN
 #define MPU9250_SPI_BUS         BUS_SPI1
 
-#define USE_GYRO
-#define USE_GYRO_MPU6000
-#define GYRO_MPU6000_ALIGN      CW270_DEG
-#define USE_GYRO_MPU6500
-#define GYRO_MPU6500_ALIGN      CW270_DEG
-#define USE_GYRO_MPU9250
-#define GYRO_MPU9250_ALIGN      CW270_DEG
-
-#define USE_ACC
-#define USE_ACC_MPU6000
-#define ACC_MPU6000_ALIGN       CW270_DEG
-#define USE_ACC_MPU6500
-#define ACC_MPU6500_ALIGN       CW270_DEG
-#define USE_ACC_MPU9250
-#define ACC_MPU9250_ALIGN       CW270_DEG
+#define USE_IMU_MPU6000
+#define IMU_MPU6000_ALIGN       CW270_DEG
+#define USE_IMU_MPU6500
+#define IMU_MPU6500_ALIGN       CW270_DEG
+#define USE_IMU_MPU9250
+#define IMU_MPU9250_ALIGN       CW270_DEG
 
 #define USE_BARO
 #define BARO_I2C_BUS            BUS_I2C2
@@ -75,7 +69,9 @@
 #define USE_MAG_HMC5883
 #define USE_MAG_QMC5883
 #define USE_MAG_IST8310
+#define USE_MAG_IST8308
 #define USE_MAG_MAG3110
+#define USE_MAG_LIS3MDL
 
 #define USE_VCP
 #define USE_UART1
@@ -109,10 +105,7 @@
 #define RSSI_ADC_CHANNEL                ADC_CHN_3
 
 #define USE_LED_STRIP
-#define WS2811_PIN                      PA6 // TIM16_CH1
-#define WS2811_DMA_STREAM               DMA1_Channel3
-#define WS2811_DMA_TC_FLAG              DMA1_FLAG_TC3
-#define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH3_HANDLER
+#define WS2811_PIN                      PA6
 
 #define DEFAULT_FEATURES        (FEATURE_TX_PROF_SEL | FEATURE_VBAT)
 #define DEFAULT_RX_TYPE         RX_TYPE_SERIAL
@@ -120,8 +113,6 @@
 #define SERIALRX_UART           SERIAL_PORT_USART3
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
-
-#define TARGET_CONFIG
 
 // Number of available PWM outputs
 #define MAX_PWM_OUTPUT_PORTS    10
@@ -133,6 +124,4 @@
 #define TARGET_IO_PORTD         (BIT(2))
 #define TARGET_IO_PORTF         (BIT(0)|BIT(1)|BIT(4))
 
-#define USABLE_TIMER_CHANNEL_COUNT 12
-#define USED_TIMERS             (TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(15))
-
+#define PCA9685_I2C_BUS         BUS_I2C2

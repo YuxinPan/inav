@@ -40,7 +40,7 @@
 #include "rx/rx.h"
 
 #include "telemetry/telemetry.h"
-#include "telemetry/frsky.h"
+#include "telemetry/frsky_d.h"
 #include "telemetry/hott.h"
 #include "telemetry/smartport.h"
 #include "telemetry/ltm.h"
@@ -48,29 +48,41 @@
 #include "telemetry/jetiexbus.h"
 #include "telemetry/ibus.h"
 #include "telemetry/crsf.h"
+#include "telemetry/sim.h"
 
-PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
 
-#if defined(STM32F303xC)
-#define TELEMETRY_DEFAULT_INVERSION 1
-#else
-#define TELEMETRY_DEFAULT_INVERSION 0
-#endif
+PG_REGISTER_WITH_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 4);
 
 PG_RESET_TEMPLATE(telemetryConfig_t, telemetryConfig,
-    .telemetry_inversion = TELEMETRY_DEFAULT_INVERSION,
-    .telemetry_switch = 0,
     .gpsNoFixLatitude = 0,
     .gpsNoFixLongitude = 0,
+    .telemetry_switch = 0,
+    .telemetry_inverted = 0,
     .frsky_coordinate_format = FRSKY_FORMAT_DMS,
     .frsky_unit = FRSKY_UNIT_METRICS,
     .frsky_vfas_precision = 0,
-    .frsky_vfas_cell_voltage = 0,
+    .frsky_pitch_roll = 0,
+    .report_cell_voltage = 0,
     .hottAlarmSoundInterval = 5,
-    .smartportUartUnidirectional = 0,
+    .halfDuplex = 1,
     .smartportFuelUnit = SMARTPORT_FUEL_UNIT_MAH,
     .ibusTelemetryType = 0,
-    .ltmUpdateRate = LTM_RATE_NORMAL
+    .ltmUpdateRate = LTM_RATE_NORMAL,
+    .simTransmitInterval = SIM_DEFAULT_TRANSMIT_INTERVAL,
+    .simTransmitFlags = SIM_DEFAULT_TX_FLAGS,
+    .simLowAltitude = INT16_MIN,
+    .simPin = SIM_PIN,
+    .accEventThresholdHigh = 0,
+    .accEventThresholdLow = 0,
+    .accEventThresholdNegX = 0,
+
+    .mavlink = {
+        .extended_status_rate = 2,
+        .rc_channels_rate = 5,
+        .position_rate = 2,
+        .extra1_rate = 10,
+        .extra2_rate = 2
+    }
 );
 
 void telemetryInit(void)
@@ -103,7 +115,11 @@ void telemetryInit(void)
     initIbusTelemetry();
 #endif
 
-#if defined(USE_TELEMETRY_CRSF)
+#if defined(USE_TELEMETRY_SIM)
+    initSimTelemetry();
+#endif
+
+#if defined(USE_SERIALRX_CRSF) && defined(USE_TELEMETRY_CRSF)
     initCrsfTelemetry();
 #endif
 
@@ -161,7 +177,11 @@ void telemetryCheckState(void)
     checkIbusTelemetryState();
 #endif
 
-#if defined(USE_TELEMETRY_CRSF)
+#if defined(USE_TELEMETRY_SIM)
+    checkSimTelemetryState();
+#endif
+
+#if defined(USE_SERIALRX_CRSF) && defined(USE_TELEMETRY_CRSF)
     checkCrsfTelemetryState();
 #endif
 }
@@ -170,7 +190,7 @@ void telemetryProcess(timeUs_t currentTimeUs)
 {
     UNUSED(currentTimeUs); // since not used by all the telemetry protocols
 
-    #if defined(USE_TELEMETRY_FRSKY)
+#if defined(USE_TELEMETRY_FRSKY)
     handleFrSkyTelemetry();
 #endif
 
@@ -194,11 +214,15 @@ void telemetryProcess(timeUs_t currentTimeUs)
     handleJetiExBusTelemetry();
 #endif
 
-#if defined(USE_TELEMETRY_IBUS)
+#if defined(USE_SERIALRX_IBUS) && defined(USE_TELEMETRY_IBUS)
     handleIbusTelemetry();
 #endif
 
-#if defined(USE_TELEMETRY_CRSF)
+#if defined(USE_TELEMETRY_SIM)
+    handleSimTelemetry();
+#endif
+
+#if defined(USE_SERIALRX_CRSF) && defined(USE_TELEMETRY_CRSF)
     handleCrsfTelemetry(currentTimeUs);
 #endif
 }

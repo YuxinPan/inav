@@ -27,15 +27,13 @@
 #include "drivers/system.h"
 #include "drivers/time.h"
 #include "drivers/exti.h"
-#include "drivers/gpio.h"
-#include "drivers/gyro_sync.h"
 
 #include "drivers/sensor.h"
 #include "drivers/accgyro/accgyro.h"
 #include "drivers/accgyro/accgyro_mpu.h"
 #include "drivers/accgyro/accgyro_mpu6500.h"
 
-#if defined(USE_GYRO_MPU6500) || defined(USE_ACC_MPU6500)
+#if defined(USE_IMU_MPU6500)
 
 #define MPU6500_BIT_RESET                   (0x80)
 #define MPU6500_BIT_INT_ANYRD_2CLEAR        (1 << 4)
@@ -45,7 +43,7 @@
 
 static void mpu6500AccInit(accDev_t *acc)
 {
-    acc->acc_1G = 512 * 8;
+    acc->acc_1G = 512 * 4;
 }
 
 bool mpu6500AccDetect(accDev_t *acc)
@@ -55,12 +53,14 @@ bool mpu6500AccDetect(accDev_t *acc)
         return false;
     }
 
-    if (busDeviceReadScratchpad(acc->busDev) != 0xFFFF6500) {
+    mpuContextData_t * ctx = busDeviceGetScratchpadMemory(acc->busDev);
+    if (ctx->chipMagicNumber != 0x6500) {
         return false;
     }
 
     acc->initFn = mpu6500AccInit;
-    acc->readFn = mpuAccRead;
+    acc->readFn = mpuAccReadScratchpad;
+    acc->accAlign = acc->busDev->param;
 
     return true;
 }
@@ -68,7 +68,10 @@ bool mpu6500AccDetect(accDev_t *acc)
 static void mpu6500AccAndGyroInit(gyroDev_t *gyro)
 {
     busDevice_t * dev = gyro->busDev;
-    mpuIntExtiInit(gyro);
+    const gyroFilterAndRateConfig_t * config = mpuChooseGyroConfig(gyro->lpf, 1000000 / gyro->requestedSampleIntervalUs);
+    gyro->sampleRateIntervalUs = 1000000 / config->gyroRateHz;
+
+    gyroIntExtiInit(gyro);
 
     busSetSpeed(dev, BUS_SPEED_INITIALIZATION);
 
@@ -84,18 +87,16 @@ static void mpu6500AccAndGyroInit(gyroDev_t *gyro)
     busWrite(dev, MPU_RA_PWR_MGMT_1, INV_CLK_PLL);
     delay(15);
 
-    const uint8_t raGyroConfigData = gyro->gyroRateKHz > GYRO_RATE_8_kHz ? (INV_FSR_2000DPS << 3 | FCB_3600_32) : (INV_FSR_2000DPS << 3 | FCB_DISABLED);
-
-    busWrite(dev, MPU_RA_GYRO_CONFIG, raGyroConfigData);
+    busWrite(dev, MPU_RA_GYRO_CONFIG, INV_FSR_2000DPS << 3 | FCB_DISABLED);
     delay(15);
 
-    busWrite(dev, MPU_RA_ACCEL_CONFIG, INV_FSR_8G << 3);
+    busWrite(dev, MPU_RA_ACCEL_CONFIG, INV_FSR_16G << 3);
     delay(15);
 
-    busWrite(dev, MPU_RA_CONFIG, gyro->lpf);
+    busWrite(dev, MPU_RA_CONFIG, config->gyroConfigValues[0]);
     delay(15);
 
-    busWrite(dev, MPU_RA_SMPLRT_DIV, gyroMPU6xxxGetDividerDrops(gyro)); // Get Divider
+    busWrite(dev, MPU_RA_SMPLRT_DIV, config->gyroConfigValues[1]);
     delay(100);
 
     // Data ready interrupt configuration
@@ -118,7 +119,7 @@ static bool mpu6500DeviceDetect(busDevice_t * dev)
     busSetSpeed(dev, BUS_SPEED_INITIALIZATION);
 
     busWrite(dev, MPU_RA_PWR_MGMT_1, MPU6500_BIT_RESET);
-    
+
     do {
         delay(150);
 
@@ -127,6 +128,7 @@ static bool mpu6500DeviceDetect(busDevice_t * dev)
         switch (tmp) {
             case MPU6500_WHO_AM_I_CONST:
             case ICM20608G_WHO_AM_I_CONST:
+            case ICM20601_WHO_AM_I_CONST:
             case ICM20602_WHO_AM_I_CONST:
             case ICM20689_WHO_AM_I_CONST:
                 // Compatible chip detected
@@ -135,10 +137,6 @@ static bool mpu6500DeviceDetect(busDevice_t * dev)
             default:
                 // Retry detection
                 break;
-        }
-
-        if (!attemptsRemaining) {
-            return false;
         }
     } while (attemptsRemaining--);
 
@@ -157,12 +155,16 @@ bool mpu6500GyroDetect(gyroDev_t *gyro)
         return false;
     }
 
-    busDeviceWriteScratchpad(gyro->busDev, 0xFFFF6500);    // Magic number for ACC detection to indicate that we have detected MPU6000 gyro
+    // Magic number for ACC detection to indicate that we have detected MPU6500 gyro
+    mpuContextData_t * ctx = busDeviceGetScratchpadMemory(gyro->busDev);
+    ctx->chipMagicNumber = 0x6500;
 
     gyro->initFn = mpu6500AccAndGyroInit;
-    gyro->readFn = mpuGyroRead;
-    gyro->intStatusFn = mpuCheckDataReady;
+    gyro->readFn = mpuGyroReadScratchpad;
+    gyro->intStatusFn = gyroCheckDataReady;
+    gyro->temperatureFn = mpuTemperatureReadScratchpad;
     gyro->scale = 1.0f / 16.4f;     // 16.4 dps/lsb scalefactor
+    gyro->gyroAlign = gyro->busDev->param;
 
     return true;
 }

@@ -21,11 +21,10 @@
 
 * HC-SR04 Rangefinder
 * ServoTilt
-* Channel Forwarding
 
 ## Radio Receivers
 
-This board does not support Parallel PWM receiver connection. Only SerialRX, PPM and MSP receivers are supported.
+SerialRX, PPM and MSP receivers are supported.
 
 SerialRX and PPM receivers should be connected to dedicated _PPM SBUS_ connector above _Motor 1_. MSP receivers should be connected to one of UARTs configured as MSP.
 
@@ -78,22 +77,9 @@ LED strip is enabled on Motor 5 pin (PA1)
 
 ## SoftwareSerial
 
-This board allows for single **SoftwareSerial** port on small soldering pads located next to UART3 pins. 
+This board allows for single **SoftwareSerial** port on small soldering pads located next to UART3 pins.
 
 | Pad   | SoftwareSerial Role   |
 | ----  | ----                  |
 | CH5   | RX                    |
 | CH6   | TX                    |
-
-## FrSky SmartPort using SoftwareSerial
-
-SmartPort telemetry is possible using SoftwareSerial. RX and TX lines have to be bridged using
-1kOhm resistor (confirmed working with 100Ohm, 1kOhm and 10kOhm)
-
-```
-SmartPort ---> RX (CH5 pad) ---> 1kOhm resistor ---> TX (CH6 pad)
-```
-
-* Telemetry has to be inverted with `set telemetry_inversion = ON`
-* Port should be configured for _57600bps_
-* Tested with FrSky X4R
