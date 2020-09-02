@@ -66,7 +66,7 @@ bool foundNearbySafeHome(void);                  // Did we find a safehome nearb
 #endif
 
 #ifndef NAV_MAX_WAYPOINTS
-#define NAV_MAX_WAYPOINTS 15
+#define NAV_MAX_WAYPOINTS 254
 #endif
 
 #define NAV_ACCEL_CUTOFF_FREQUENCY_HZ 2       // low-pass filter on XY-acceleration target
