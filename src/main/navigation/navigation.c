@@ -66,6 +66,8 @@
 #define FW_RTH_CLIMB_MARGIN_MIN_CM  100
 #define FW_RTH_CLIMB_MARGIN_PERCENT 15
 
+STATIC_ASSERT(NAV_MAX_WAYPOINTS < 254, NAV_MAX_WAYPOINTS_exceeded_allowable_range);
+
 /*-----------------------------------------------------------
  * Compatibility for home position
  *-----------------------------------------------------------*/
