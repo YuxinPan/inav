@@ -1830,7 +1830,7 @@ static void navProcessFSMEvents(navigationFSMEvent_t injectedEvent)
 
     NAV_Status.activeWpNumber = posControl.activeWaypointIndex + 1;
     NAV_Status.activeWpAction = 0;
-    if ((posControl.activeWaypointIndex >= 0) && (posControl.activeWaypointIndex < NAV_MAX_WAYPOINTS)) {
+    if (posControl.activeWaypointIndex < NAV_MAX_WAYPOINTS) {
         NAV_Status.activeWpAction = posControl.waypointList[posControl.activeWaypointIndex].action;
     }
 }
