@@ -354,10 +354,10 @@ typedef struct {
     /* Waypoint list */
     navWaypoint_t               waypointList[NAV_MAX_WAYPOINTS];
     bool                        waypointListValid;
-    int8_t                      waypointCount;
+    uint8_t                     waypointCount;
 
     navWaypointPosition_t       activeWaypoint;     // Local position and initial bearing, filled on waypoint activation
-    int8_t                      activeWaypointIndex;
+    uint8_t                     activeWaypointIndex;
     float                       wpInitialAltitude; // Altitude at start of WP
     float                       wpInitialDistance; // Distance when starting flight to WP
     float                       wpDistance;        // Distance to active WP
