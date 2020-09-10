@@ -613,17 +613,19 @@ static void imuCalculateEstimatedAttitude(float dT)
             useMag = true;
             gpsHeadingInitialized = true;   // GPS heading initialised from MAG, continue on GPS if compass fails
         }
-        if (gpsHeadingInitialized) {
-            courseOverGround = DECIDEGREES_TO_RADIANS(gpsSol.groundCourse);
-            useCOG = true;
-        }
-        else {
-            // Re-initialize quaternion from known Roll, Pitch and GPS heading
-            imuComputeQuaternionFromRPY(attitude.values.roll, attitude.values.pitch, gpsSol.groundCourse);
-            gpsHeadingInitialized = true;
+        if (canUseCOG) {
+            if (gpsHeadingInitialized) {
+                courseOverGround = DECIDEGREES_TO_RADIANS(gpsSol.groundCourse);
+                useCOG = true;
+            }
+            else {
+                // Re-initialize quaternion from known Roll, Pitch and GPS heading
+                imuComputeQuaternionFromRPY(attitude.values.roll, attitude.values.pitch, gpsSol.groundCourse);
+                gpsHeadingInitialized = true;
 
-            // Force reset of heading hold target
-            resetHeadingHoldTarget(DECIDEGREES_TO_DEGREES(attitude.values.yaw));
+                // Force reset of heading hold target
+                resetHeadingHoldTarget(DECIDEGREES_TO_DEGREES(attitude.values.yaw));
+            }
         }
     }
     else {
