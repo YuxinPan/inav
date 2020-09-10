@@ -82,6 +82,7 @@ FILE_COMPILE_FOR_SPEED
 
 FASTRAM fpVector3_t imuMeasuredAccelBF;
 FASTRAM fpVector3_t imuMeasuredRotationBF;
+FASTRAM fpVector3_t imuMeasuredLastMagBF = { .v = { 0.0f, 0.0f, 0.0f } };
 STATIC_FASTRAM float smallAngleCosZ;
 
 STATIC_FASTRAM bool isAccelUpdatedAtLeastOnce;
@@ -308,7 +309,77 @@ static void imuMahonyAHRSupdate(float dt, const fpVector3_t * gyroBF, const fpVe
 
         fpVector3_t vErr = { .v = { 0.0f, 0.0f, 0.0f } };
 
-        if (magBF && vectorNormSquared(magBF) > 0.01f) {
+        if (magBF && vectorNormSquared(magBF) > 0.01f && useCOG) {
+
+            fpVector3_t vErrMag = { .v = { 0.0f, 0.0f, 0.0f } };
+            fpVector3_t vMag;
+            fpQuaternion_t imuMeasuredLastMagBFQuat;
+
+            // For magnetometer correction we make an assumption that magnetic field is perpendicular to gravity (ignore Z-component in EF).
+            // This way magnetic field will only affect heading and wont mess roll/pitch angles
+
+            // (hx; hy; 0) - measured mag field vector in EF (assuming Z-component is zero)
+            // This should yield direction to magnetic North (1; 0; 0)
+            quaternionInitFromVector(&imuMeasuredLastMagBFQuat,&imuMeasuredLastMagBF);
+            quaternionRotateVectorInv(&vMag, magBF, &imuMeasuredLastMagBFQuat);    // BF -> EF
+            imuMeasuredLastMagBF = * magBF;
+
+            // Ignore magnetic inclination
+            vMag.z = 0.0f;
+
+            // We zeroed out vMag.z -  make sure the whole vector didn't go to zero
+            if (vectorNormSquared(&vMag) > 0.01f) {
+                // Normalize to unit vector
+                vectorNormalize(&vMag, &vMag);
+
+                // Reference mag field vector heading is Magnetic North in EF. We compute that by rotating True North vector by declination and assuming Z-component is zero
+                // magnetometer error is cross product between estimated magnetic north and measured magnetic north (calculated in EF)
+                vectorCrossProduct(&vErrMag, &vMag, &vCorrectedMagNorth);
+
+                // Rotate error back into body frame
+                // quaternionRotateVector(&vErr, &vErr, &orientation);
+            }
+
+
+
+            fpVector3_t vErrCoG = { .v = { 0.0f, 0.0f, 0.0f } };
+            fpVector3_t vHeadingEF;
+
+            // Use raw heading error (from GPS or whatever else)
+            while (courseOverGround >  M_PIf) courseOverGround -= (2.0f * M_PIf);
+            while (courseOverGround < -M_PIf) courseOverGround += (2.0f * M_PIf);
+
+            // William Premerlani and Paul Bizard, Direction Cosine Matrix IMU - Eqn. 22-23
+            // (Rxx; Ryx) - measured (estimated) heading vector (EF)
+            // (-cos(COG), sin(COG)) - reference heading vector (EF)
+
+            // Compute heading vector in EF from scalar CoG
+            fpVector3_t vCoG = { .v = { -cos_approx(courseOverGround), sin_approx(courseOverGround), 0.0f } };
+
+            // Rotate Forward vector from BF to EF - will yield Heading vector in Earth frame
+            quaternionRotateVectorInv(&vHeadingEF, &vForward, &orientation);
+            vHeadingEF.z = 0.0f;
+
+            // We zeroed out vHeadingEF.z -  make sure the whole vector didn't go to zero
+            if (vectorNormSquared(&vHeadingEF) > 0.01f) {
+                // Normalize to unit vector
+                vectorNormalize(&vHeadingEF, &vHeadingEF);
+
+                // error is cross product between reference heading and estimated heading (calculated in EF)
+                vectorCrossProduct(&vErrCoG, &vCoG, &vHeadingEF);
+
+                // Rotate error back into body frame
+                // quaternionRotateVector(&vErr, &vErr, &orientation);
+            }
+
+            vErr.x = (vErrMag.x + vErrCoG.x)/2;
+            vErr.y = (vErrMag.y + vErrCoG.y)/2;
+            vErr.z = (vErrMag.z + vErrCoG.z)/2;
+
+            quaternionRotateVector(&vErr, &vErr, &orientation);
+
+        }
+        else if (magBF && vectorNormSquared(magBF) > 0.01f) {
             fpVector3_t vMag;
 
             // For magnetometer correction we make an assumption that magnetic field is perpendicular to gravity (ignore Z-component in EF).
